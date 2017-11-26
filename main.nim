@@ -6,13 +6,20 @@ import opengl
 type SDLException = object of Exception
 
 var dontQuit = true
+
 loadExtensions()
 
+
+# Initialize OpenGL
+loadExtensions()
 
 template sdlFailIf(cond: typed, reason: string) =
   if cond: raise SDLException.newException(
     reason & ", SDL error: " & $getError())
 
+
+template ClearColor*(r:float32, g:float32, b:float32, a:float32) =
+  glClearColor(r.GLfloat, g.GLfloat, b.GLfloat, a.GLfloat)
 
 proc handleInput() =
   var event = defaultEvent
@@ -39,7 +46,7 @@ template GetShaderInfoLog*(shader:GLuint) : string =
 
 
 proc main =
-  sdlFailIf(not sdl2.init(INIT_VIDEO or INIT_TIMER or INIT_EVENTS)):
+  sdlFailIf(not sdl2.init(INIT_EVERYTHING)):
     "SDL2 initialization failed"
 
   # defer blocks get called at the end of the procedure, even if an
@@ -51,35 +58,30 @@ proc main =
 
   let window = createWindow(title = "Our own 2D platformer",
     x = SDL_WINDOWPOS_CENTERED, y = SDL_WINDOWPOS_CENTERED,
-    w = 800, h = 600, flags = SDL_WINDOW_SHOWN)
+        w = 800, h = 600, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
   sdlFailIf window.isNil: "Window could not be created"
+  discard window.glCreateContext()
   defer: window.destroy()
 
-  let renderer = window.createRenderer(index = -1,
-    flags = Renderer_Accelerated or Renderer_PresentVsync)
-  sdlFailIf renderer.isNil: "Renderer could not be created"
-  defer: renderer.destroy()
-
-  # Set the default color to use for drawing
-  renderer.setDrawColor(r = 110, g = 132, b = 174)
-
-  let vertices = @[
-    vec3(-0.5f, -0.5f, 0.0f),
-    vec3(0.5f, -0.5f, 0.0f),
-    vec3(0.0f,  0.5f, 0.0f)
-  ]
-
-  let vertexShaderSource = r"#version 330 core\n layout (location = 0) in vec3 aPos;\n void main()\n {\n gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n}\0 "
-
-  let fragmentShaderSource = r"#version 330 core\n out vec4 FragColor;\n void main()\n {\n FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n}\n\0"
+  let
+    vertices = @[
+      -0.5f32, -0.5f32, 0.0f32,
+      0.5f32, -0.5f32, 0.0f32,
+      0.0f32,  0.5f32, 0.0f32
+    ]
+    vertexShaderSource = readFile("vertex_shader.vert")
+    fragmentShaderSource = readFile("fragment_shader.frag")
 
   var
     vbo: GLuint
+    vao: GLuint
     vertexShader: GLuint
     fragmentShader: GLuint
     shaderProgram: GLuint
 
-  glGenBuffers(1,addr vbo)
+  glGenBuffers(1, addr vbo)
+  glGenVertexArrays(1, addr vao)
+  glBindVertexArray(vao)
   glBindBuffer(GL_ARRAY_BUFFER, vbo)
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.len, vertices[0].unsafe_addr, GL_STATIC_DRAW)
 
@@ -107,12 +109,15 @@ proc main =
   glAttachShader(shaderProgram, vertexShader)
   glAttachShader(shaderProgram, fragmentShader)
   glLinkProgram(shaderProgram)
-  glUseProgram(shaderProgram)
   glDeleteShader(vertexShader)
   glDeleteShader(fragmentShader)
 
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0)
+  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (3 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
   glEnableVertexAttribArray(0)
+
+  glUseProgram(shaderProgram)
+  glBindVertexArray(vao)
+  glDrawArrays(GL_TRIANGLES, 0, 3)
 
 
   # Game loop, draws each frame
@@ -120,8 +125,12 @@ proc main =
     # Draw over all drawings of the last frame with the default
     # color
     handleInput()
-    renderer.clear()
-    # Show the result on screen
-    renderer.present()
+
+    ClearColor(0.2,0.3,0.3,1.0)
+    glClear(GL_COLOR_BUFFER_BIT)
+    glUseProgram(shaderProgram)
+    glBindVertexArray(vao)
+    glDrawArrays(GL_TRIANGLES, 0, 3)
+    window.glSwapWindow()
 
 main()

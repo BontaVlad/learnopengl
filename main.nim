@@ -1,18 +1,20 @@
 import sdl2
 import glm
 import opengl
+import stb_image/read as stbi
+import times
 
 
 type SDLException = object of Exception
 
 var dontQuit = true
 
-loadExtensions()
-
+let
+  screenWidth : cint = 800
+  screenHeight : cint = 600
 
 # Initialize OpenGL
 loadExtensions()
-
 template sdlFailIf(cond: typed, reason: string) =
   if cond: raise SDLException.newException(
     reason & ", SDL error: " & $getError())
@@ -58,32 +60,92 @@ proc main =
 
   let window = createWindow(title = "Our own 2D platformer",
     x = SDL_WINDOWPOS_CENTERED, y = SDL_WINDOWPOS_CENTERED,
-        w = 800, h = 600, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
+        w = screenWidth, h = screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
   sdlFailIf window.isNil: "Window could not be created"
   discard window.glCreateContext()
   defer: window.destroy()
 
+
+  glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
+  # glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
+  # glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
+
   let
-    vertices = @[
-      -0.5f32, -0.5f32, 0.0f32,
-      0.5f32, -0.5f32, 0.0f32,
-      0.0f32,  0.5f32, 0.0f32
+    vertices : seq[float32] = @[
+      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 0.0f32,
+      0.5f32, -0.5f32, -0.5f32,  1.0f32, 0.0f32,
+      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+      -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 0.0f32,
+
+      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+      0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      0.5f32,  0.5f32,  0.5f32,  1.0f32, 1.0f32,
+      0.5f32,  0.5f32,  0.5f32,  1.0f32, 1.0f32,
+      -0.5f32,  0.5f32,  0.5f32,  0.0f32, 1.0f32,
+      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+
+      -0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      -0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+      -0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+
+      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+      0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+
+      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      0.5f32, -0.5f32, -0.5f32,  1.0f32, 1.0f32,
+      0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+
+      -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32,
+      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+      -0.5f32,  0.5f32,  0.5f32,  0.0f32, 0.0f32,
+      -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32
     ]
+    # indices : seq[uint32] = @[
+    #   0'u32, 1'u32, 3'u32, # first triangle
+    #   1'u32, 2'u32, 3'u32  # second triangle
+    # ]
+
     vertexShaderSource = readFile("vertex_shader.vert")
     fragmentShaderSource = readFile("fragment_shader.frag")
 
   var
     vbo: GLuint
     vao: GLuint
+    ebo: GLuint
     vertexShader: GLuint
     fragmentShader: GLuint
     shaderProgram: GLuint
+    texture1, texture2: GLuint
+    width, height, channels: int
+    data: seq[uint8]
+    model = mat4(1.0'f32)
+    view = mat4(1.0'f32).translate(vec3(0.0'f32, 0.0'f32, -3.0'f32))
+    projection = perspective(radians(45f), float32(screenWidth / screenHeight), 0.1f, 100f)
 
-  glGenBuffers(1, addr vbo)
+
   glGenVertexArrays(1, addr vao)
+  glGenBuffers(1, addr vbo)
+  # glGenBuffers(1, addr ebo)
+
   glBindVertexArray(vao)
   glBindBuffer(GL_ARRAY_BUFFER, vbo)
+  # glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.len, vertices[0].unsafe_addr, GL_STATIC_DRAW)
+  # glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0])*indices.len, indices[0].unsafe_addr, GL_STATIC_DRAW)
 
   vertexShader = glCreateShader(GL_VERTEX_SHADER)
   fragmentShader = glCreateShader(GL_FRAGMENT_SHADER)
@@ -95,8 +157,35 @@ proc main =
   glShaderSource(fragmentShader, 1, cstr_fragment, nil)
   glCompileShader(vertexShader)
   glCompileShader(fragmentShader)
+
   deallocCStringArray(cstr_vertex)
   deallocCStringArray(cstr_fragment)
+
+  glGenTextures(1, addr texture1)
+  glBindTexture(GL_TEXTURE_2D, texture1)
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+  stbi.set_flip_vertically_on_load(true)
+
+  data = stbi.load("container.jpg", width, height, channels, stbi.Default)
+
+
+  glTexImage2D(GL_TEXTURE_2D, 0.GLint, GL_RGB.GLint, width.GLsizei, height.GLsizei, 0.GLint, GL_RGB, GL_UNSIGNED_BYTE, addr data[0]);
+  glGenerateMipmap(GL_TEXTURE_2D);
+
+  data = stbi.load("awesomeface.png", width, height, channels, stbi.Default)
+
+
+  glGenTextures(1, addr texture2)
+  glBindTexture(GL_TEXTURE_2D, texture2)
+
+  glTexImage2D(GL_TEXTURE_2D, 0.GLint, GL_RGB.GLint, width.GLsizei, height.GLsizei, 0.GLint, GL_RGBA, GL_UNSIGNED_BYTE, addr data[0]);
+
+  glGenerateMipmap(GL_TEXTURE_2D);
 
   if not GetShaderCompileStatus(vertexShader):
     echo GetShaderInfoLog(vertexShader)
@@ -112,25 +201,41 @@ proc main =
   glDeleteShader(vertexShader)
   glDeleteShader(fragmentShader)
 
-  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (3 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
+  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (5 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
   glEnableVertexAttribArray(0)
 
-  glUseProgram(shaderProgram)
-  glBindVertexArray(vao)
-  glDrawArrays(GL_TRIANGLES, 0, 3)
+  glVertexAttribPointer(1.GLuint, 2.GLint, cGL_FLOAT, false, (5 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](3 * sizeof(cGL_FLOAT)))
+  glEnableVertexAttribArray(1)
 
+  glUseProgram(shaderProgram)
+  glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0)
+  glUniform1i(glGetUniformLocation(shaderProgram, "texture2"), 1)
+
+
+  glActiveTexture(GL_TEXTURE0)
+  glBindTexture(GL_TEXTURE_2D, texture1)
+
+  glActiveTexture(GL_TEXTURE1)
+  glBindTexture(GL_TEXTURE_2D, texture2)
 
   # Game loop, draws each frame
   while dontQuit:
-    # Draw over all drawings of the last frame with the default
-    # color
+    # Draw over all drawings of the last frame with the default color
     handleInput()
 
     ClearColor(0.2,0.3,0.3,1.0)
-    glClear(GL_COLOR_BUFFER_BIT)
-    glUseProgram(shaderProgram)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
     glBindVertexArray(vao)
-    glDrawArrays(GL_TRIANGLES, 0, 3)
+    model = mat4(1.0'f32).rotate(vec3(0.5'f32, 1.0'f32, 0.0'f32), getTicks().float / 100.0 * radians(5.0f))
+
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model").GLint, 1.GLsizei, GL_FALSE, model.caddr)
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
+    # glDrawElements(GL_TRIANGLES, 6.GLsizei, GL_UNSIGNED_INT, cast[pointer](0))
+
+    glDrawArrays(GL_TRIANGLES, 0, 36)
+
+    glBindVertexArray(0)
     window.glSwapWindow()
 
 main()

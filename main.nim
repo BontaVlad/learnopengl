@@ -7,11 +7,11 @@ import stb_image/read as stbi
 
 type SDLException = object of Exception
 
-var dontQuit = true
-
-let
+var
+  dontQuit = true
   screenWidth : cint = 800
   screenHeight : cint = 600
+  fov = 45.0f
 
 let
   vertices : seq[float32] = @[
@@ -95,7 +95,11 @@ var
   cameraFront = vec3(0.0f, 0.0f, -1.0f)
   cameraUp = vec3(0.0f, 1.0f, 0.0f)
   model = mat4(1.0'f32)
-  projection = perspective(radians(45f), float32(screenWidth / screenHeight), 0.1f, 100f)
+  deltaTime = 0.0f
+  lastFrame = 0.0f
+  cameraSpeed = 2.5f
+  yaw = -90.0f
+  pitch = 0.0f
 
 
 # Initialize OpenGL
@@ -117,30 +121,57 @@ proc handleInput() =
     case evt.kind
     of QuitEvent:
       dontQuit = false
-    # of WindowEvent:
-    #   var windowEvent = cast[WindowEventPtr](addr(evt))
-    #   if windowEvent.event == WindowEvent_Resized:
-    #     let newWidth = windowEvent.data1
-    #     let newHeight = windowEvent.data2
-    #     glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
-    # of MouseWheel:
-    #   var wheelEvent = cast[MouseWheelEventPtr](addr(evt))
-    #   # camera.ProcessMouseScroll(wheelEvent.y.float32)
-    # of MouseMotion:
-    #   var motionEvent = cast[MouseMotionEventPtr](addr(evt))
-    #   camera.ProcessMouseMovement(motionEvent.xrel.float32,motionEvent.yrel.float32)
+    of WindowEvent:
+      var windowEvent = cast[WindowEventPtr](addr(evt))
+      if windowEvent.event == WindowEvent_Resized:
+        screenWidth = windowEvent.data1
+        screenHeight = windowEvent.data2
+        glViewport(0, 0, screenWidth, screenHeight)   # Set the viewport to cover the new window
+    of MouseWheel:
+      var wheelEvent = cast[MouseWheelEventPtr](addr(evt))
+      if fov >= 1.0f and fov <= 45.0f:
+        fov -= wheelEvent.y.float32
+      if fov <= 1.0f:
+        fov = 1.0f
+      if fov >= 45.0f:
+        fov = 45.0f
+
+    of MouseMotion:
+      var
+        motionEvent = cast[MouseMotionEventPtr](addr(evt))
+        xpos = motionEvent.xrel.float32
+        ypos = motionEvent.yrel.float32
+
+      var
+        sensitivity = 0.1f
+        front = vec3(0.0f, 0.0f, 0.0f)
+
+      if pitch > 89.0f:
+        pitch = 89.0f
+      if pitch <  - 89.0f:
+        pitch = -89.0f
+
+      xpos *= sensitivity
+      ypos *= sensitivity
+      yaw += xpos
+      pitch -= ypos
+
+      front.x = cos(radians(pitch)) * cos(radians(yaw))
+      front.y = sin(radians(pitch))
+      front.z = cos(radians(pitch)) * sin(radians(yaw))
+      cameraFront = normalize(front)
+      # camera.ProcessMouseMovement(motionEvent.xrel.float32,motionEvent.yrel.float32)
     else:
       discard
 
 
-  let cameraSpeed = 0.05f
-  if keyState[SDL_SCANCODE_W.uint8] != 0:
+  if keyState[SDL_SCANCODE_UP.uint8] != 0:
     cameraPos += cameraSpeed * cameraFront
-  if keyState[SDL_SCANCODE_S.uint8] != 0:
+  if keyState[SDL_SCANCODE_DOWN.uint8] != 0:
     cameraPos -= cameraSpeed * cameraFront
-  if keyState[SDL_SCANCODE_A.uint8] != 0:
+  if keyState[SDL_SCANCODE_LEFT.uint8] != 0:
     cameraPos -= normalize(cross(cameraFront, cameraUp)) * cameraSpeed
-  if keyState[SDL_SCANCODE_D.uint8] != 0:
+  if keyState[SDL_SCANCODE_RIGHT.uint8] != 0:
     cameraPos += normalize(cross(cameraFront, cameraUp)) * cameraSpeed
     # camera.ProcessKeyBoard(RIGHT,elapsedTime)
   if keyState[SDL_SCANCODE_ESCAPE.uint8] != 0:
@@ -175,6 +206,8 @@ proc main =
     x = SDL_WINDOWPOS_CENTERED, y = SDL_WINDOWPOS_CENTERED,
         w = screenWidth, h = screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
   sdlFailIf window.isNil: "Window could not be created"
+
+  discard setRelativeMouseMode(true.Bool32)
   discard window.glCreateContext()
   defer: window.destroy()
 
@@ -263,7 +296,6 @@ proc main =
   glBindTexture(GL_TEXTURE_2D, texture2)
 
 
-  glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
   # Game loop, draws each frame
   while dontQuit:
     # Draw over all drawings of the last frame with the default color
@@ -272,13 +304,14 @@ proc main =
     ClearColor(0.2,0.3,0.3,1.0)
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
     glBindVertexArray(vao)
+    let currentFrame = getTicks().float
+    deltaTime = currentFrame - lastFrame
+    lastFrame = currentFrame
+    cameraSpeed = 0.02f * deltaTime
 
-    # var
-    #   radius = 10.0f
-    #   camX = sin(getTicks().float32 / 1000.0f32) * radius
-    #   camZ = cos(getTicks().float32 / 1000.0f32) * radius
-    #   view = lookAt(vec3(camX, 0.0f, camZ), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f))
-    var view = lookAt(cameraPos, cameraPos + cameraFront, cameraUp)
+    var
+      view = lookAt(cameraPos, cameraPos + cameraFront, cameraUp)
+      projection = perspective(radians(fov), float32(screenWidth / screenHeight), 0.1f, 100f)
 
     for i, position in pairs(cubePositions):
       model = mat4(1.0'f32)
@@ -287,11 +320,12 @@ proc main =
       model = model.rotate(vec3(1.0'f32, 0.3'f32, 0.5'f32), angle)
 
       glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model").GLint, 1.GLsizei, GL_FALSE, model.caddr)
-      glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
 
       glDrawArrays(GL_TRIANGLES, 0, 36)
     # glDrawElements(GL_TRIANGLES, 6.GLsizei, GL_UNSIGNED_INT, cast[pointer](0))
 
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
     glBindVertexArray(0)
     window.glSwapWindow()
 

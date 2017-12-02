@@ -13,6 +13,91 @@ let
   screenWidth : cint = 800
   screenHeight : cint = 600
 
+let
+  vertices : seq[float32] = @[
+    -0.5f32, -0.5f32, -0.5f32,  0.0f32, 0.0f32,
+    0.5f32, -0.5f32, -0.5f32,  1.0f32, 0.0f32,
+    0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+    0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+    -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    -0.5f32, -0.5f32, -0.5f32,  0.0f32, 0.0f32,
+
+    -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+    0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    0.5f32,  0.5f32,  0.5f32,  1.0f32, 1.0f32,
+    0.5f32,  0.5f32,  0.5f32,  1.0f32, 1.0f32,
+    -0.5f32,  0.5f32,  0.5f32,  0.0f32, 1.0f32,
+    -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+
+    -0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    -0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+    -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+    -0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+
+    0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+    0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+    0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+
+    -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    0.5f32, -0.5f32, -0.5f32,  1.0f32, 1.0f32,
+    0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
+    -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
+
+    -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32,
+    0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
+    0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
+    -0.5f32,  0.5f32,  0.5f32,  0.0f32, 0.0f32,
+    -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32
+  ]
+  cubePositions = @[
+    vec3( 0.0f,  0.0f,  0.0f),
+    vec3( 2.0f,  5.0f, -15.0f),
+    vec3(-1.5f, -2.2f, -2.5f),
+    vec3(-3.8f, -2.0f, -12.3f),
+    vec3( 2.4f, -0.4f, -3.5f),
+    vec3(-1.7f,  3.0f, -7.5f),
+    vec3( 1.3f, -2.0f, -2.5f),
+    vec3( 1.5f,  2.0f, -2.5f),
+    vec3( 1.5f,  0.2f, -1.5f),
+    vec3(-1.3f,  1.0f, -1.5f)
+  ]
+  # indices : seq[uint32] = @[
+  #   0'u32, 1'u32, 3'u32, # first triangle
+  #   1'u32, 2'u32, 3'u32  # second triangle
+  # ]
+
+  # cameraTarget = vec3(0.0f, 0.0f, 0.0f)
+  # cameraDirection = normalize(cameraPos - cameraTarget)
+  # cameraRight = normalize(cross(up, cameraDirection))
+  # cameraUp = cross(cameraDirection, cameraRight)
+  vertexShaderSource = readFile("vertex_shader.vert")
+  fragmentShaderSource = readFile("fragment_shader.frag")
+
+var
+  vbo: GLuint
+  vao: GLuint
+  ebo: GLuint
+  vertexShader: GLuint
+  fragmentShader: GLuint
+  shaderProgram: GLuint
+  texture1, texture2: GLuint
+  width, height, channels: int
+  data: seq[uint8]
+  cameraPos = vec3(0.0f, 0.0f, 0.3f)
+  cameraFront = vec3(0.0f, 0.0f, -1.0f)
+  cameraUp = vec3(0.0f, 1.0f, 0.0f)
+  model = mat4(1.0'f32)
+  projection = perspective(radians(45f), float32(screenWidth / screenHeight), 0.1f, 100f)
+
+
 # Initialize OpenGL
 loadExtensions()
 template sdlFailIf(cond: typed, reason: string) =
@@ -23,15 +108,43 @@ template sdlFailIf(cond: typed, reason: string) =
 template ClearColor*(r:float32, g:float32, b:float32, a:float32) =
   glClearColor(r.GLfloat, g.GLfloat, b.GLfloat, a.GLfloat)
 
+
 proc handleInput() =
-  var event = defaultEvent
-  while pollEvent(event):
-    case event.kind
+  var evt = defaultEvent
+  let keyState = getKeyboardState()
+
+  while pollEvent(evt):
+    case evt.kind
     of QuitEvent:
       dontQuit = false
+    # of WindowEvent:
+    #   var windowEvent = cast[WindowEventPtr](addr(evt))
+    #   if windowEvent.event == WindowEvent_Resized:
+    #     let newWidth = windowEvent.data1
+    #     let newHeight = windowEvent.data2
+    #     glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
+    # of MouseWheel:
+    #   var wheelEvent = cast[MouseWheelEventPtr](addr(evt))
+    #   # camera.ProcessMouseScroll(wheelEvent.y.float32)
+    # of MouseMotion:
+    #   var motionEvent = cast[MouseMotionEventPtr](addr(evt))
+    #   camera.ProcessMouseMovement(motionEvent.xrel.float32,motionEvent.yrel.float32)
     else:
       discard
 
+
+  let cameraSpeed = 0.05f
+  if keyState[SDL_SCANCODE_W.uint8] != 0:
+    cameraPos += cameraSpeed * cameraFront
+  if keyState[SDL_SCANCODE_S.uint8] != 0:
+    cameraPos -= cameraSpeed * cameraFront
+  if keyState[SDL_SCANCODE_A.uint8] != 0:
+    cameraPos -= normalize(cross(cameraFront, cameraUp)) * cameraSpeed
+  if keyState[SDL_SCANCODE_D.uint8] != 0:
+    cameraPos += normalize(cross(cameraFront, cameraUp)) * cameraSpeed
+    # camera.ProcessKeyBoard(RIGHT,elapsedTime)
+  if keyState[SDL_SCANCODE_ESCAPE.uint8] != 0:
+    discard
 
 template GetShaderCompileStatus*(shader: GLuint) : bool  =
   var r : GLint
@@ -67,96 +180,6 @@ proc main =
 
 
   glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
-
-  let
-    vertices : seq[float32] = @[
-      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 0.0f32,
-      0.5f32, -0.5f32, -0.5f32,  1.0f32, 0.0f32,
-      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
-      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
-      -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 0.0f32,
-
-      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
-      0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      0.5f32,  0.5f32,  0.5f32,  1.0f32, 1.0f32,
-      0.5f32,  0.5f32,  0.5f32,  1.0f32, 1.0f32,
-      -0.5f32,  0.5f32,  0.5f32,  0.0f32, 1.0f32,
-      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
-
-      -0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      -0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
-      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
-      -0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
-
-      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
-      0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
-      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
-
-      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      0.5f32, -0.5f32, -0.5f32,  1.0f32, 1.0f32,
-      0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      0.5f32, -0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      -0.5f32, -0.5f32,  0.5f32,  0.0f32, 0.0f32,
-      -0.5f32, -0.5f32, -0.5f32,  0.0f32, 1.0f32,
-
-      -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32,
-      0.5f32,  0.5f32, -0.5f32,  1.0f32, 1.0f32,
-      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      0.5f32,  0.5f32,  0.5f32,  1.0f32, 0.0f32,
-      -0.5f32,  0.5f32,  0.5f32,  0.0f32, 0.0f32,
-      -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32
-    ]
-    cubePositions = @[
-      vec3( 0.0f,  0.0f,  0.0f),
-      vec3( 2.0f,  5.0f, -15.0f),
-      vec3(-1.5f, -2.2f, -2.5f),
-      vec3(-3.8f, -2.0f, -12.3f),
-      vec3( 2.4f, -0.4f, -3.5f),
-      vec3(-1.7f,  3.0f, -7.5f),
-      vec3( 1.3f, -2.0f, -2.5f),
-      vec3( 1.5f,  2.0f, -2.5f),
-      vec3( 1.5f,  0.2f, -1.5f),
-      vec3(-1.3f,  1.0f, -1.5f)
-    ]
-    # indices : seq[uint32] = @[
-    #   0'u32, 1'u32, 3'u32, # first triangle
-    #   1'u32, 2'u32, 3'u32  # second triangle
-    # ]
-
-    cameraPos = vec3(0.0f, 0.0f, 0.3f)
-    cameraTarget = vec3(0.0f, 0.0f, 0.0f)
-    cameraDirection = normalize(cameraPos - cameraTarget)
-    up = vec3(0.0f, 1.0f, 0.0f)
-    cameraRight = normalize(cross(up, cameraDirection))
-    cameraUp = cross(cameraDirection, cameraRight)
-    vertexShaderSource = readFile("vertex_shader.vert")
-    fragmentShaderSource = readFile("fragment_shader.frag")
-
-  var
-    vbo: GLuint
-    vao: GLuint
-    ebo: GLuint
-    vertexShader: GLuint
-    fragmentShader: GLuint
-    shaderProgram: GLuint
-    texture1, texture2: GLuint
-    width, height, channels: int
-    data: seq[uint8]
-    model = mat4(1.0'f32)
-    # float radius = 10.0f;
-    #         float camX = sin(glfwGetTime()) * radius;
-    #         float camZ = cos(glfwGetTime()) * radius;
-    #         glm::mat4 view;
-    #       view = glm::lookAt(glm::vec3(camX, 0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
-    # view = mat4(1.0'f32).translate(vec3(0.0'f32, 0.0'f32, -3.0'f32))
-    projection = perspective(radians(45f), float32(screenWidth / screenHeight), 0.1f, 100f)
-
 
   glGenVertexArrays(1, addr vao)
   glGenBuffers(1, addr vbo)
@@ -250,11 +273,12 @@ proc main =
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
     glBindVertexArray(vao)
 
-    var
-      radius = 10.0f
-      camX = sin(getTicks().float32 / 1000.0f32) * radius
-      camZ = cos(getTicks().float32 / 1000.0f32) * radius
-      view = lookAt(vec3(camX, 0.0f, camZ), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f))
+    # var
+    #   radius = 10.0f
+    #   camX = sin(getTicks().float32 / 1000.0f32) * radius
+    #   camZ = cos(getTicks().float32 / 1000.0f32) * radius
+    #   view = lookAt(vec3(camX, 0.0f, camZ), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f))
+    var view = lookAt(cameraPos, cameraPos + cameraFront, cameraUp)
 
     for i, position in pairs(cubePositions):
       model = mat4(1.0'f32)

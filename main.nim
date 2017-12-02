@@ -1,8 +1,8 @@
 import sdl2
 import glm
+import math
 import opengl
 import stb_image/read as stbi
-import times
 
 
 type SDLException = object of Exception
@@ -67,8 +67,6 @@ proc main =
 
 
   glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
-  # glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
-  # glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
   let
     vertices : seq[float32] = @[
@@ -114,11 +112,29 @@ proc main =
       -0.5f32,  0.5f32,  0.5f32,  0.0f32, 0.0f32,
       -0.5f32,  0.5f32, -0.5f32,  0.0f32, 1.0f32
     ]
+    cubePositions = @[
+      vec3( 0.0f,  0.0f,  0.0f),
+      vec3( 2.0f,  5.0f, -15.0f),
+      vec3(-1.5f, -2.2f, -2.5f),
+      vec3(-3.8f, -2.0f, -12.3f),
+      vec3( 2.4f, -0.4f, -3.5f),
+      vec3(-1.7f,  3.0f, -7.5f),
+      vec3( 1.3f, -2.0f, -2.5f),
+      vec3( 1.5f,  2.0f, -2.5f),
+      vec3( 1.5f,  0.2f, -1.5f),
+      vec3(-1.3f,  1.0f, -1.5f)
+    ]
     # indices : seq[uint32] = @[
     #   0'u32, 1'u32, 3'u32, # first triangle
     #   1'u32, 2'u32, 3'u32  # second triangle
     # ]
 
+    cameraPos = vec3(0.0f, 0.0f, 0.3f)
+    cameraTarget = vec3(0.0f, 0.0f, 0.0f)
+    cameraDirection = normalize(cameraPos - cameraTarget)
+    up = vec3(0.0f, 1.0f, 0.0f)
+    cameraRight = normalize(cross(up, cameraDirection))
+    cameraUp = cross(cameraDirection, cameraRight)
     vertexShaderSource = readFile("vertex_shader.vert")
     fragmentShaderSource = readFile("fragment_shader.frag")
 
@@ -133,7 +149,12 @@ proc main =
     width, height, channels: int
     data: seq[uint8]
     model = mat4(1.0'f32)
-    view = mat4(1.0'f32).translate(vec3(0.0'f32, 0.0'f32, -3.0'f32))
+    # float radius = 10.0f;
+    #         float camX = sin(glfwGetTime()) * radius;
+    #         float camZ = cos(glfwGetTime()) * radius;
+    #         glm::mat4 view;
+    #       view = glm::lookAt(glm::vec3(camX, 0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
+    # view = mat4(1.0'f32).translate(vec3(0.0'f32, 0.0'f32, -3.0'f32))
     projection = perspective(radians(45f), float32(screenWidth / screenHeight), 0.1f, 100f)
 
 
@@ -218,6 +239,8 @@ proc main =
   glActiveTexture(GL_TEXTURE1)
   glBindTexture(GL_TEXTURE_2D, texture2)
 
+
+  glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
   # Game loop, draws each frame
   while dontQuit:
     # Draw over all drawings of the last frame with the default color
@@ -226,14 +249,24 @@ proc main =
     ClearColor(0.2,0.3,0.3,1.0)
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
     glBindVertexArray(vao)
-    model = mat4(1.0'f32).rotate(vec3(0.5'f32, 1.0'f32, 0.0'f32), getTicks().float / 100.0 * radians(5.0f))
 
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model").GLint, 1.GLsizei, GL_FALSE, model.caddr)
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
+    var
+      radius = 10.0f
+      camX = sin(getTicks().float32 / 1000.0f32) * radius
+      camZ = cos(getTicks().float32 / 1000.0f32) * radius
+      view = lookAt(vec3(camX, 0.0f, camZ), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f))
+
+    for i, position in pairs(cubePositions):
+      model = mat4(1.0'f32)
+      model = model.translate(position)
+      let angle = i.float * getTicks().float / 100.0 * radians(5f)
+      model = model.rotate(vec3(1.0'f32, 0.3'f32, 0.5'f32), angle)
+
+      glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model").GLint, 1.GLsizei, GL_FALSE, model.caddr)
+      glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
+
+      glDrawArrays(GL_TRIANGLES, 0, 36)
     # glDrawElements(GL_TRIANGLES, 6.GLsizei, GL_UNSIGNED_INT, cast[pointer](0))
-
-    glDrawArrays(GL_TRIANGLES, 0, 36)
 
     glBindVertexArray(0)
     window.glSwapWindow()

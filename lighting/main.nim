@@ -2,6 +2,9 @@ import sdl2
 import glm
 import opengl
 
+import shader
+import camera
+
 
 type SDLException = object of Exception
 
@@ -10,7 +13,9 @@ var
   run = true
   screenWidth : cint = 800
   screenHeight : cint = 600
-  # fov = 45.0f
+  cam = newCamera(vec3(0.0f, 0.0f, 3.0f))
+  deltaTime = 0.0f
+  lastFrame = 0.0f
 
 
 # Initialize OpenGL
@@ -23,8 +28,25 @@ template sdlFailIf(cond: typed, reason: string) =
 template ClearColor*(r:float32, g:float32, b:float32, a:float32) =
   glClearColor(r.GLfloat, g.GLfloat, b.GLfloat, a.GLfloat)
 
+proc glCheckError*(ignoreError = false) =
+  let error = glGetError()
+  var msg: seq[string] = @[]
+  case error:
+    of GL_NO_ERROR: discard
+    of GL_INVALID_ENUM: msg.add("GL_INVALID_ENUM")
+    of GL_INVALID_VALUE: msg.add("GL_INVALID_VALUE")
+    of GL_INVALID_OPERATION: msg.add("GL_INVALID_OPERATION")
+    of GL_STACK_OVERFLOW: msg.add("GL_STACK_OVERFLOW")
+    of GL_STACK_UNDERFLOW: msg.add("GL_STACK_UNDERFLOW")
+    of GL_OUT_OF_MEMORY: msg.add("GL_OUT_OF_MEMORY")
+    else: echo repr(error)
+  for m in msg:
+    echo "Error: ", m
+    if not ignoreError:
+      quit "glCheckError occurred"
 
-proc handleInput() =
+
+proc handleInput(deltaTime: float) =
   var evt = defaultEvent
   let keyState = getKeyboardState()
 
@@ -40,53 +62,24 @@ proc handleInput() =
         glViewport(0, 0, screenWidth, screenHeight)   # Set the viewport to cover the new window
     of MouseWheel:
       var wheelEvent = cast[MouseWheelEventPtr](addr(evt))
-      # if fov >= 1.0f and fov <= 45.0f:
-      #   fov -= wheelEvent.y.float32
-      # if fov <= 1.0f:
-      #   fov = 1.0f
-      # if fov >= 45.0f:
-      #   fov = 45.0f
+      cam.processMouseScroll(wheelEvent.y.float32)
 
-    # of MouseMotion:
-    #   var
-    #     motionEvent = cast[MouseMotionEventPtr](addr(evt))
-    #     xpos = motionEvent.xrel.float32
-    #     ypos = motionEvent.yrel.float32
-
-    #   var
-    #     sensitivity = 0.1f
-    #     front = vec3(0.0f, 0.0f, 0.0f)
-
-    #   if pitch > 89.0f:
-    #     pitch = 89.0f
-    #   if pitch <  - 89.0f:
-    #     pitch = -89.0f
-
-    #   xpos *= sensitivity
-    #   ypos *= sensitivity
-    #   yaw += xpos
-    #   pitch -= ypos
-
-    #   front.x = cos(radians(pitch)) * cos(radians(yaw))
-    #   front.y = sin(radians(pitch))
-    #   front.z = cos(radians(pitch)) * sin(radians(yaw))
-    #   cameraFront = normalize(front)
-    #   # camera.ProcessMouseMovement(motionEvent.xrel.float32,motionEvent.yrel.float32)
+    of MouseMotion:
+      var motionEvent = cast[MouseMotionEventPtr](addr(evt))
+      cam.processMouseMovement(motionEvent.xrel.float32, motionEvent.yrel.float32)
     else:
       discard
 
-
-  # if keyState[SDL_SCANCODE_UP.uint8] != 0:
-  #   cameraPos += cameraSpeed * cameraFront
-  # if keyState[SDL_SCANCODE_DOWN.uint8] != 0:
-  #   cameraPos -= cameraSpeed * cameraFront
-  # if keyState[SDL_SCANCODE_LEFT.uint8] != 0:
-  #   cameraPos -= normalize(cross(cameraFront, cameraUp)) * cameraSpeed
-  # if keyState[SDL_SCANCODE_RIGHT.uint8] != 0:
-  #   cameraPos += normalize(cross(cameraFront, cameraUp)) * cameraSpeed
-  #   # camera.ProcessKeyBoard(RIGHT,elapsedTime)
-  # if keyState[SDL_SCANCODE_ESCAPE.uint8] != 0:
-  #   discard
+  if keyState[SDL_SCANCODE_UP.uint8] != 0:
+    cam.processKeyboard(FORWARD, deltaTime)
+  if keyState[SDL_SCANCODE_DOWN.uint8] != 0:
+    cam.processKeyboard(BACKWARD, deltaTime)
+  if keyState[SDL_SCANCODE_LEFT.uint8] != 0:
+    cam.processKeyboard(LEFT, deltaTime)
+  if keyState[SDL_SCANCODE_RIGHT.uint8] != 0:
+    cam.processKeyboard(RIGHT, deltaTime)
+  if keyState[SDL_SCANCODE_ESCAPE.uint8] != 0:
+    discard
 
 
 proc main =
@@ -96,6 +89,12 @@ proc main =
     # defer blocks get called at the end of the procedure, even if an
     # exception has been thrown
   defer: sdl2.quit()
+
+
+  discard glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  discard glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+  discard glSetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+  discard glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
   sdlFailIf(not setHint("SDL_RENDER_SCALE_QUALITY", "2")):
     "Linear texture filtering could not be enabled"
@@ -112,35 +111,120 @@ proc main =
 
   glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
 
+  let
+    vertices : seq[float32]  =
+        @[
+          # positions                 # texture coords
+          -0.5'f32, -0.5'f32, -0.5'f32,
+          0.5'f32, -0.5'f32, -0.5'f32,
+          0.5'f32,  0.5'f32, -0.5'f32,
+          0.5'f32,  0.5'f32, -0.5'f32,
+        -0.5'f32,  0.5'f32, -0.5'f32,
+        -0.5'f32, -0.5'f32, -0.5'f32,
 
+        -0.5'f32, -0.5'f32,  0.5'f32,
+          0.5'f32, -0.5'f32,  0.5'f32,
+          0.5'f32,  0.5'f32,  0.5'f32,
+          0.5'f32,  0.5'f32,  0.5'f32,
+        -0.5'f32,  0.5'f32,  0.5'f32,
+        -0.5'f32, -0.5'f32,  0.5'f32,
 
-#       unsigned int lightVAO;
-#       glGenVertexArrays(1, &lightVAO);
-#       glBindVertexArray(lightVAO);
-#       // we only need to bind to the VBO, the container's VBO's data already contains the correct data.
-#       glBindBuffer(GL_ARRAY_BUFFER, VBO);
-#       // set the vertex attributes (only position data for our lamp)
-#       glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-#       glEnableVertexAttribArray(0);
+        -0.5'f32,  0.5'f32,  0.5'f32,
+        -0.5'f32,  0.5'f32, -0.5'f32,
+        -0.5'f32, -0.5'f32, -0.5'f32,
+        -0.5'f32, -0.5'f32, -0.5'f32,
+        -0.5'f32, -0.5'f32,  0.5'f32,
+        -0.5'f32,  0.5'f32,  0.5'f32,
+
+          0.5'f32,  0.5'f32,  0.5'f32,
+          0.5'f32,  0.5'f32, -0.5'f32,
+          0.5'f32, -0.5'f32, -0.5'f32,
+          0.5'f32, -0.5'f32, -0.5'f32,
+          0.5'f32, -0.5'f32,  0.5'f32,
+          0.5'f32,  0.5'f32,  0.5'f32,
+
+        -0.5'f32, -0.5'f32, -0.5'f32,
+          0.5'f32, -0.5'f32, -0.5'f32,
+          0.5'f32, -0.5'f32,  0.5'f32,
+          0.5'f32, -0.5'f32,  0.5'f32,
+        -0.5'f32, -0.5'f32,  0.5'f32,
+        -0.5'f32, -0.5'f32, -0.5'f32,
+
+        -0.5'f32,  0.5'f32, -0.5'f32,
+          0.5'f32,  0.5'f32, -0.5'f32,
+          0.5'f32,  0.5'f32,  0.5'f32,
+          0.5'f32,  0.5'f32,  0.5'f32,
+        -0.5'f32,  0.5'f32,  0.5'f32,
+      -0.5'f32, 0.5'f32, -0.5'f32]
 
   var
-    lightVAO: GLuint
     VBO: GLuint
-
-
-  glGenVertexArrays(1, addr lightVAO)
-  glBindVertexArray(lightVAO)
+    cubeVAO: GLuint
+  glGenVertexArrays(1, addr cubeVAO)
+  glGenBuffers(1, addr VBO)
 
   glBindBuffer(GL_ARRAY_BUFFER, VBO)
+  glBufferData(GL_ARRAY_BUFFER, sizeof(cGL_FLOAT) * vertices.len, vertices[0].unsafe_addr, GL_STATIC_DRAW)
+
+  glBindVertexArray(cubeVAO)
+
   glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (3 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
   glEnableVertexAttribArray(0)
 
 
-  while run:
-    handleInput()
-    ClearColor(0.2,0.3,0.3,1.0)
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-    window.glSwapWindow()
+  var lightVAO: GLuint
+  glGenVertexArrays(1, addr lightVAO)
+  glBindVertexArray(lightVAO)
+  glBindBuffer(GL_ARRAY_BUFFER, VBO)
 
+  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (3 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
+  glEnableVertexAttribArray(0)
+
+  var
+    lightingShader = newShader("colors.vert", "colors.frag")
+    lampShader = newShader("lamp.vert", "lamp.frag")
+    lampColor = vec3f(1.0f)
+    lampPos = vec3f(1.2f, 1.0f, 2.0f)
+
+  while run:
+    var
+      currentFrame = getTicks().float
+      projection = perspective[float32](radians(cam.zoom), screenWidth/screenHeight, 0.1f, 100.0f)
+      view = cam.viewMatrix
+
+    deltaTime = currentFrame - lastFrame
+    lastFrame = currentFrame
+
+    handleInput(deltaTime)
+    ClearColor(0.1,0.1,0.1,1.0)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+
+    var
+      objectColor = vec3f(1.0f, 0.5f, 0.31f)
+      lightColor = vec3f(1.0f, 1.0f, 1.0f)
+      lightingModel = mat4f(1.0f)
+
+    lightingShader.use()
+    lightingShader.set("objectColor", objectColor)
+    lightingShader.set("lightColor", lampColor)
+
+    lightingShader.set("projection", projection)
+    lightingShader.set("view", view)
+    lightingShader.set("model", lightingModel)
+
+    glBindVertexArray(cubeVAO)
+    glDrawArrays(GL_TRIANGLES, 0, 36)
+
+    lampShader.use()
+    lampShader.set("projection", projection)
+    lampShader.set("view", view)
+
+    var model = translate(mat4(1.0f), lampPos).scale(vec3(0.2f))
+    lampShader.set("model", model)
+
+    glBindVertexArray(lightVAO)
+    glDrawArrays(GL_TRIANGLES, 0, 36)
+
+    window.glSwapWindow()
 
 main()

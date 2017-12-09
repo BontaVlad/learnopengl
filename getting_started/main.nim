@@ -3,6 +3,8 @@ import glm
 import math
 import opengl
 import stb_image/read as stbi
+import ../lighting/camera
+import ../lighting/shader
 
 
 type SDLException = object of Exception
@@ -11,7 +13,6 @@ var
   dontQuit = true
   screenWidth : cint = 800
   screenHeight : cint = 600
-  fov = 45.0f
 
 let
   vertices : seq[float32] = @[
@@ -69,37 +70,18 @@ let
     vec3( 1.5f,  0.2f, -1.5f),
     vec3(-1.3f,  1.0f, -1.5f)
   ]
-  # indices : seq[uint32] = @[
-  #   0'u32, 1'u32, 3'u32, # first triangle
-  #   1'u32, 2'u32, 3'u32  # second triangle
-  # ]
-
-  # cameraTarget = vec3(0.0f, 0.0f, 0.0f)
-  # cameraDirection = normalize(cameraPos - cameraTarget)
-  # cameraRight = normalize(cross(up, cameraDirection))
-  # cameraUp = cross(cameraDirection, cameraRight)
-  vertexShaderSource = readFile("vertex_shader.vert")
-  fragmentShaderSource = readFile("fragment_shader.frag")
 
 var
   vbo: GLuint
   vao: GLuint
   ebo: GLuint
-  vertexShader: GLuint
-  fragmentShader: GLuint
-  shaderProgram: GLuint
   texture1, texture2: GLuint
   width, height, channels: int
   data: seq[uint8]
-  cameraPos = vec3(0.0f, 0.0f, 0.3f)
-  cameraFront = vec3(0.0f, 0.0f, -1.0f)
-  cameraUp = vec3(0.0f, 1.0f, 0.0f)
   model = mat4(1.0'f32)
   deltaTime = 0.0f
   lastFrame = 0.0f
-  cameraSpeed = 2.5f
-  yaw = -90.0f
-  pitch = 0.0f
+  cam = newCamera(vec3(0.0f, 0.0f, 0.3f), speed=0.2f)
 
 
 # Initialize OpenGL
@@ -112,8 +94,7 @@ template sdlFailIf(cond: typed, reason: string) =
 template ClearColor*(r:float32, g:float32, b:float32, a:float32) =
   glClearColor(r.GLfloat, g.GLfloat, b.GLfloat, a.GLfloat)
 
-
-proc handleInput() =
+proc handleInput(deltaTime: float) =
   var evt = defaultEvent
   let keyState = getKeyboardState()
 
@@ -129,53 +110,25 @@ proc handleInput() =
         glViewport(0, 0, screenWidth, screenHeight)   # Set the viewport to cover the new window
     of MouseWheel:
       var wheelEvent = cast[MouseWheelEventPtr](addr(evt))
-      if fov >= 1.0f and fov <= 45.0f:
-        fov -= wheelEvent.y.float32
-      if fov <= 1.0f:
-        fov = 1.0f
-      if fov >= 45.0f:
-        fov = 45.0f
+      cam.processMouseScroll(wheelEvent.y.float32)
 
     of MouseMotion:
-      var
-        motionEvent = cast[MouseMotionEventPtr](addr(evt))
-        xpos = motionEvent.xrel.float32
-        ypos = motionEvent.yrel.float32
-
-      var
-        sensitivity = 0.1f
-        front = vec3(0.0f, 0.0f, 0.0f)
-
-      if pitch > 89.0f:
-        pitch = 89.0f
-      if pitch <  - 89.0f:
-        pitch = -89.0f
-
-      xpos *= sensitivity
-      ypos *= sensitivity
-      yaw += xpos
-      pitch -= ypos
-
-      front.x = cos(radians(pitch)) * cos(radians(yaw))
-      front.y = sin(radians(pitch))
-      front.z = cos(radians(pitch)) * sin(radians(yaw))
-      cameraFront = normalize(front)
-      # camera.ProcessMouseMovement(motionEvent.xrel.float32,motionEvent.yrel.float32)
+      var motionEvent = cast[MouseMotionEventPtr](addr(evt))
+      cam.processMouseMovement(motionEvent.xrel.float32, motionEvent.yrel.float32)
     else:
       discard
 
-
   if keyState[SDL_SCANCODE_UP.uint8] != 0:
-    cameraPos += cameraSpeed * cameraFront
+    cam.processKeyboard(FORWARD, deltaTime)
   if keyState[SDL_SCANCODE_DOWN.uint8] != 0:
-    cameraPos -= cameraSpeed * cameraFront
+    cam.processKeyboard(BACKWARD, deltaTime)
   if keyState[SDL_SCANCODE_LEFT.uint8] != 0:
-    cameraPos -= normalize(cross(cameraFront, cameraUp)) * cameraSpeed
+    cam.processKeyboard(LEFT, deltaTime)
   if keyState[SDL_SCANCODE_RIGHT.uint8] != 0:
-    cameraPos += normalize(cross(cameraFront, cameraUp)) * cameraSpeed
-    # camera.ProcessKeyBoard(RIGHT,elapsedTime)
+    cam.processKeyboard(RIGHT, deltaTime)
   if keyState[SDL_SCANCODE_ESCAPE.uint8] != 0:
     discard
+
 
 template GetShaderCompileStatus*(shader: GLuint) : bool  =
   var r : GLint
@@ -202,6 +155,13 @@ proc main =
   sdlFailIf(not setHint("SDL_RENDER_SCALE_QUALITY", "2")):
     "Linear texture filtering could not be enabled"
 
+
+  discard glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  discard glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+  discard glSetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+  discard glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+
   let window = createWindow(title = "Our own 2D platformer",
     x = SDL_WINDOWPOS_CENTERED, y = SDL_WINDOWPOS_CENTERED,
         w = screenWidth, h = screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
@@ -223,20 +183,6 @@ proc main =
   # glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.len, vertices[0].unsafe_addr, GL_STATIC_DRAW)
   # glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0])*indices.len, indices[0].unsafe_addr, GL_STATIC_DRAW)
-
-  vertexShader = glCreateShader(GL_VERTEX_SHADER)
-  fragmentShader = glCreateShader(GL_FRAGMENT_SHADER)
-
-  let cstr_vertex = allocCStringArray([vertexShaderSource])
-  let cstr_fragment = allocCStringArray([fragmentShaderSource])
-
-  glShaderSource(vertexShader, 1, cstr_vertex, nil)
-  glShaderSource(fragmentShader, 1, cstr_fragment, nil)
-  glCompileShader(vertexShader)
-  glCompileShader(fragmentShader)
-
-  deallocCStringArray(cstr_vertex)
-  deallocCStringArray(cstr_fragment)
 
   glGenTextures(1, addr texture1)
   glBindTexture(GL_TEXTURE_2D, texture1)
@@ -264,19 +210,6 @@ proc main =
 
   glGenerateMipmap(GL_TEXTURE_2D);
 
-  if not GetShaderCompileStatus(vertexShader):
-    echo GetShaderInfoLog(vertexShader)
-
-  if not GetShaderCompileStatus(fragmentShader):
-    echo GetShaderInfoLog(fragmentShader)
-
-
-  shaderProgram = glCreateProgram()
-  glAttachShader(shaderProgram, vertexShader)
-  glAttachShader(shaderProgram, fragmentShader)
-  glLinkProgram(shaderProgram)
-  glDeleteShader(vertexShader)
-  glDeleteShader(fragmentShader)
 
   glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (5 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
   glEnableVertexAttribArray(0)
@@ -284,9 +217,10 @@ proc main =
   glVertexAttribPointer(1.GLuint, 2.GLint, cGL_FLOAT, false, (5 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](3 * sizeof(cGL_FLOAT)))
   glEnableVertexAttribArray(1)
 
-  glUseProgram(shaderProgram)
-  glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0)
-  glUniform1i(glGetUniformLocation(shaderProgram, "texture2"), 1)
+  var cubeShader = newShader("vertex_shader.vert", "fragment_shader.frag")
+  cubeShader.use()
+  cubeShader.set("texture1", 0)
+  cubeShader.set("texture2", 1)
 
 
   glActiveTexture(GL_TEXTURE0)
@@ -299,7 +233,6 @@ proc main =
   # Game loop, draws each frame
   while dontQuit:
     # Draw over all drawings of the last frame with the default color
-    handleInput()
 
     ClearColor(0.2,0.3,0.3,1.0)
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
@@ -307,11 +240,12 @@ proc main =
     let currentFrame = getTicks().float
     deltaTime = currentFrame - lastFrame
     lastFrame = currentFrame
-    cameraSpeed = 0.02f * deltaTime
+
+    handleInput(deltaTime)
 
     var
-      view = lookAt(cameraPos, cameraPos + cameraFront, cameraUp)
-      projection = perspective(radians(fov), float32(screenWidth / screenHeight), 0.1f, 100f)
+      view = cam.viewMatrix
+      projection = perspective[float32](cam.zoom, float32(screenWidth / screenHeight), 0.1f, 100f)
 
     for i, position in pairs(cubePositions):
       model = mat4(1.0'f32)
@@ -319,13 +253,16 @@ proc main =
       let angle = i.float * getTicks().float / 100.0 * radians(5f)
       model = model.rotate(vec3(1.0'f32, 0.3'f32, 0.5'f32), angle)
 
-      glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model").GLint, 1.GLsizei, GL_FALSE, model.caddr)
+      cubeShader.set("model", model)
+      # glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model").GLint, 1.GLsizei, GL_FALSE, model.caddr)
 
       glDrawArrays(GL_TRIANGLES, 0, 36)
     # glDrawElements(GL_TRIANGLES, 6.GLsizei, GL_UNSIGNED_INT, cast[pointer](0))
 
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
+    # glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection").GLint, 1.GLsizei, GL_FALSE, projection.caddr)
+    # glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view").GLint, 1.GLsizei, GL_FALSE, view.caddr)
+    cubeShader.set("projection", projection)
+    cubeShader.set("view", view)
     glBindVertexArray(0)
     window.glSwapWindow()
 

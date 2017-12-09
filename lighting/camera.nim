@@ -3,7 +3,7 @@ import glm
 let
   YAW = -90.0'f32
   PITCH = 0.0'f32
-  SPEED = 0.2'f32
+  SPEED = 0.05'f32
   SENSITIVITY = 0.1'f32
   ZOOM = 45.0'f32
 

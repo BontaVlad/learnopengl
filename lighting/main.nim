@@ -111,51 +111,50 @@ proc main =
 
   glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
 
-  let
-    vertices : seq[float32]  =
-        @[
-          # positions                 # texture coords
-          -0.5'f32, -0.5'f32, -0.5'f32,
-          0.5'f32, -0.5'f32, -0.5'f32,
-          0.5'f32,  0.5'f32, -0.5'f32,
-          0.5'f32,  0.5'f32, -0.5'f32,
-        -0.5'f32,  0.5'f32, -0.5'f32,
-        -0.5'f32, -0.5'f32, -0.5'f32,
+  let vertices : seq[float32]  =
+    @[
+      -0.5'f32, -0.5'f32, -0.5'f32,  0.0'f32,  0.0'f32, -1.0'f32,
+      0.5'f32, -0.5'f32, -0.5'f32,  0.0'f32,  0.0'f32, -1.0'f32,
+      0.5'f32,  0.5'f32, -0.5'f32,  0.0'f32,  0.0'f32, -1.0'f32,
+      0.5'f32,  0.5'f32, -0.5'f32,  0.0'f32,  0.0'f32, -1.0'f32,
+      -0.5'f32,  0.5'f32, -0.5'f32,  0.0'f32,  0.0'f32, -1.0'f32,
+      -0.5'f32, -0.5'f32, -0.5'f32,  0.0'f32,  0.0'f32, -1.0'f32,
 
-        -0.5'f32, -0.5'f32,  0.5'f32,
-          0.5'f32, -0.5'f32,  0.5'f32,
-          0.5'f32,  0.5'f32,  0.5'f32,
-          0.5'f32,  0.5'f32,  0.5'f32,
-        -0.5'f32,  0.5'f32,  0.5'f32,
-        -0.5'f32, -0.5'f32,  0.5'f32,
+      -0.5'f32, -0.5'f32,  0.5'f32,  0.0'f32,  0.0'f32, 1.0'f32,
+      0.5'f32, -0.5'f32,  0.5'f32,  0.0'f32,  0.0'f32, 1.0'f32,
+      0.5'f32,  0.5'f32,  0.5'f32,  0.0'f32,  0.0'f32, 1.0'f32,
+      0.5'f32,  0.5'f32,  0.5'f32,  0.0'f32,  0.0'f32, 1.0'f32,
+      -0.5'f32,  0.5'f32,  0.5'f32,  0.0'f32,  0.0'f32, 1.0'f32,
+      -0.5'f32, -0.5'f32,  0.5'f32,  0.0'f32,  0.0'f32, 1.0'f32,
 
-        -0.5'f32,  0.5'f32,  0.5'f32,
-        -0.5'f32,  0.5'f32, -0.5'f32,
-        -0.5'f32, -0.5'f32, -0.5'f32,
-        -0.5'f32, -0.5'f32, -0.5'f32,
-        -0.5'f32, -0.5'f32,  0.5'f32,
-        -0.5'f32,  0.5'f32,  0.5'f32,
+      -0.5'f32,  0.5'f32,  0.5'f32, -1.0'f32,  0.0'f32,  0.0'f32,
+      -0.5'f32,  0.5'f32, -0.5'f32, -1.0'f32,  0.0'f32,  0.0'f32,
+      -0.5'f32, -0.5'f32, -0.5'f32, -1.0'f32,  0.0'f32,  0.0'f32,
+      -0.5'f32, -0.5'f32, -0.5'f32, -1.0'f32,  0.0'f32,  0.0'f32,
+      -0.5'f32, -0.5'f32,  0.5'f32, -1.0'f32,  0.0'f32,  0.0'f32,
+      -0.5'f32,  0.5'f32,  0.5'f32, -1.0'f32,  0.0'f32,  0.0'f32,
 
-          0.5'f32,  0.5'f32,  0.5'f32,
-          0.5'f32,  0.5'f32, -0.5'f32,
-          0.5'f32, -0.5'f32, -0.5'f32,
-          0.5'f32, -0.5'f32, -0.5'f32,
-          0.5'f32, -0.5'f32,  0.5'f32,
-          0.5'f32,  0.5'f32,  0.5'f32,
+      0.5'f32,  0.5'f32,  0.5'f32,  1.0'f32,  0.0'f32,  0.0'f32,
+      0.5'f32,  0.5'f32, -0.5'f32,  1.0'f32,  0.0'f32,  0.0'f32,
+      0.5'f32, -0.5'f32, -0.5'f32,  1.0'f32,  0.0'f32,  0.0'f32,
+      0.5'f32, -0.5'f32, -0.5'f32,  1.0'f32,  0.0'f32,  0.0'f32,
+      0.5'f32, -0.5'f32,  0.5'f32,  1.0'f32,  0.0'f32,  0.0'f32,
+      0.5'f32,  0.5'f32,  0.5'f32,  1.0'f32,  0.0'f32,  0.0'f32,
 
-        -0.5'f32, -0.5'f32, -0.5'f32,
-          0.5'f32, -0.5'f32, -0.5'f32,
-          0.5'f32, -0.5'f32,  0.5'f32,
-          0.5'f32, -0.5'f32,  0.5'f32,
-        -0.5'f32, -0.5'f32,  0.5'f32,
-        -0.5'f32, -0.5'f32, -0.5'f32,
+      -0.5'f32, -0.5'f32, -0.5'f32,  0.0'f32, -1.0'f32,  0.0'f32,
+      0.5'f32, -0.5'f32, -0.5'f32,  0.0'f32, -1.0'f32,  0.0'f32,
+      0.5'f32, -0.5'f32,  0.5'f32,  0.0'f32, -1.0'f32,  0.0'f32,
+      0.5'f32, -0.5'f32,  0.5'f32,  0.0'f32, -1.0'f32,  0.0'f32,
+      -0.5'f32, -0.5'f32,  0.5'f32,  0.0'f32, -1.0'f32,  0.0'f32,
+      -0.5'f32, -0.5'f32, -0.5'f32,  0.0'f32, -1.0'f32,  0.0'f32,
 
-        -0.5'f32,  0.5'f32, -0.5'f32,
-          0.5'f32,  0.5'f32, -0.5'f32,
-          0.5'f32,  0.5'f32,  0.5'f32,
-          0.5'f32,  0.5'f32,  0.5'f32,
-        -0.5'f32,  0.5'f32,  0.5'f32,
-      -0.5'f32, 0.5'f32, -0.5'f32]
+      -0.5'f32,  0.5'f32, -0.5'f32,  0.0'f32,  1.0'f32,  0.0'f32,
+      0.5'f32,  0.5'f32, -0.5'f32,  0.0'f32,  1.0'f32,  0.0'f32,
+      0.5'f32,  0.5'f32,  0.5'f32,  0.0'f32,  1.0'f32,  0.0'f32,
+      0.5'f32,  0.5'f32,  0.5'f32,  0.0'f32,  1.0'f32,  0.0'f32,
+      -0.5'f32,  0.5'f32,  0.5'f32,  0.0'f32,  1.0'f32,  0.0'f32,
+      -0.5'f32, 0.5'f32, -0.5'f32, 0.0'f32, 1.0'f32, 0.0'f32
+  ]
 
   var
     VBO: GLuint
@@ -168,23 +167,25 @@ proc main =
 
   glBindVertexArray(cubeVAO)
 
-  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (3 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
+  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (6 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
   glEnableVertexAttribArray(0)
 
+  glVertexAttribPointer(1.GLuint, 3.GLint, cGL_FLOAT, false, (6 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](3 * sizeof(cGL_FLOAT)))
+  glEnableVertexAttribArray(1)
 
   var lightVAO: GLuint
   glGenVertexArrays(1, addr lightVAO)
   glBindVertexArray(lightVAO)
   glBindBuffer(GL_ARRAY_BUFFER, VBO)
 
-  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (3 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
+  glVertexAttribPointer(0.GLuint, 3.GLint, cGL_FLOAT, false, (6 * sizeof(cGL_FLOAT)).GLsizei, cast[pointer](0))
   glEnableVertexAttribArray(0)
 
   var
     lightingShader = newShader("colors.vert", "colors.frag")
     lampShader = newShader("lamp.vert", "lamp.frag")
     lampColor = vec3f(1.0f)
-    lampPos = vec3f(1.2f, 1.0f, 2.0f)
+    lampPos = vec3f(1.2f, 0.0f, 2.0f)
 
   while run:
     var
@@ -203,10 +204,16 @@ proc main =
       objectColor = vec3f(1.0f, 0.5f, 0.31f)
       lightColor = vec3f(1.0f, 1.0f, 1.0f)
       lightingModel = mat4f(1.0f)
+      x = 0.0f + 1.0 * sin(0.001 * currentFrame)
+      y = 0.0f + 1.0 * cos(0.001 * currentFrame)
+
+    lampPos = vec3f(x, 0.0f, y)
 
     lightingShader.use()
     lightingShader.set("objectColor", objectColor)
     lightingShader.set("lightColor", lampColor)
+    lightingShader.set("lightPos", lampPos)
+    lightingShader.set("viewPos", cam.position)
 
     lightingShader.set("projection", projection)
     lightingShader.set("view", view)

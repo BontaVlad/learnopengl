@@ -223,7 +223,9 @@ proc main =
     ClearColor(0.1,0.1,0.1,1.0)
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    lightingShader.set("light.position", vec3f(1.2f, 1.0f, 2.0f))
+    lightingShader.set("light.position", cam.position)
+    lightingShader.set("light.direction", cam.front)
+    lightingShader.set("light.cutOff", cos(12.5f.radians))
     lightingShader.set("viewPos", cam.position)
 
     lightingShader.set("light.ambient", vec3f(0.2f, 0.2f, 0.2f))

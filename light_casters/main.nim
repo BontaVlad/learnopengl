@@ -223,13 +223,15 @@ proc main =
     ClearColor(0.1,0.1,0.1,1.0)
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    lightingShader.use()
-    lightingShader.set("light.direction", vec3f(-0.2f, -1.0f, -0.3f))
+    lightingShader.set("light.position", vec3f(1.2f, 1.0f, 2.0f))
     lightingShader.set("viewPos", cam.position)
 
     lightingShader.set("light.ambient", vec3f(0.2f, 0.2f, 0.2f))
     lightingShader.set("light.diffuse", vec3f(0.5f, 0.5f, 0.5f))
     lightingShader.set("light.specular", vec3f(1.0f, 1.0f, 1.0f))
+    lightingShader.set("light.constant", 1.0f)
+    lightingShader.set("light.linear", 0.09f)
+    lightingShader.set("light.quadratic", 0.032f)
 
     # material properties
     lightingShader.set("material.shininess", 32.0f)

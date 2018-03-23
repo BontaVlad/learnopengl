@@ -225,7 +225,8 @@ proc main =
 
     lightingShader.set("light.position", cam.position)
     lightingShader.set("light.direction", cam.front)
-    lightingShader.set("light.cutOff", cos(12.5f.radians))
+    lightingShader.set("light.cutOff", cos(8.0f.radians))
+    lightingShader.set("light.outerCutOff", cos(17.5f.radians))
     lightingShader.set("viewPos", cam.position)
 
     lightingShader.set("light.ambient", vec3f(0.2f, 0.2f, 0.2f))
